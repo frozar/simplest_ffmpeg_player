@@ -63,9 +63,7 @@ int main(int argc, char* argv[])
   AVCodecContext  *pCodecCtx;
   AVCodec         *pCodec;
   AVFrame         *pFrame,*pFrameYUV;
-  // unsigned char   *out_buffer;
   uint8_t         *out_buffer;
-  // AVPacket        *packet;
   AVPacket        packet;
 
   int y_size;
@@ -99,10 +97,10 @@ int main(int argc, char* argv[])
   }
 
   // ### 1 - Container Format Data : raw HEVC video
-  fprintf( stderr, "pFormatCtx->iformat->name: %s\n", pFormatCtx->iformat->name ) ;
-  fprintf( stderr, "pFormatCtx->iformat->long_name: %s\n", pFormatCtx->iformat->long_name ) ;
-  fprintf( stderr, "pFormatCtx->iformat->extensions: %s\n", pFormatCtx->iformat->extensions ) ;
-  fprintf( stderr, "pFormatCtx->iformat->mime_type: %s\n", pFormatCtx->iformat->mime_type ) ;
+  // fprintf( stderr, "pFormatCtx->iformat->name: %s\n", pFormatCtx->iformat->name ) ;
+  // fprintf( stderr, "pFormatCtx->iformat->long_name: %s\n", pFormatCtx->iformat->long_name ) ;
+  // fprintf( stderr, "pFormatCtx->iformat->extensions: %s\n", pFormatCtx->iformat->extensions ) ;
+  // fprintf( stderr, "pFormatCtx->iformat->mime_type: %s\n", pFormatCtx->iformat->mime_type ) ;
   
   if(avformat_find_stream_info(pFormatCtx,NULL)<0){
     printf("Couldn't find stream information.\n");
@@ -129,9 +127,8 @@ int main(int argc, char* argv[])
     return -1;
   }
 
-  fprintf( stderr, "pCodec->name: %s\n", pCodec->name ) ;
-  fprintf( stderr, "pCodec->long_name: %s\n", pCodec->name ) ;
-  // exit( 0 ) ;
+  // fprintf( stderr, "pCodec->name: %s\n", pCodec->name ) ;
+  // fprintf( stderr, "pCodec->long_name: %s\n", pCodec->name ) ;
 
   if(avcodec_open2( pCodecCtx, pCodec, NULL ) < 0 ){
     printf("Could not open codec.\n");
@@ -139,34 +136,23 @@ int main(int argc, char* argv[])
   }
 
   // ### 3 - Audio/Video raw data : AV_PIX_FMT_YUV420P
-  pFrame   = av_frame_alloc();
-  // pFrameYUV= av_frame_alloc();
-
   fprintf( stderr, "input  pixel format: pCodecCtx->pix_fmt: %d\n", pCodecCtx->pix_fmt ) ;
   fprintf( stderr, "output pixel format: AV_PIX_FMT_YUV420P: %d\n", AV_PIX_FMT_YUV420P ) ;
-  // exit( 0 ) ;
 
   // ### 4 - Allocate data to store a single picture
-
   AVPixelFormat output_format_choice = AV_PIX_FMT_YUV420P ;
-  // int           interpolation_choice = SWS_BICUBIC ;
-  int           interpolation_choice = SWS_GAUSS ;
-  // av_image_alloc(pFrameYUV->data, pFrameYUV->linesize,
-  // 		 pCodecCtx->width * 2, pCodecCtx->height * 2, output_format_choice, 1 ) ;
+  int           interpolation_choice = SWS_BICUBIC ;
+  int           width_choice         = pCodecCtx->width * 2 ;
+  int           height_choice        = pCodecCtx->height * 2 ;
   
+  pFrame     = av_frame_alloc();
   pFrameYUV  = av_frame_alloc();
-  // out_buffer = av_malloc( av_image_get_buffer_size(AV_PIX_FMT_YUV420P,
-  // 						   pCodecCtx->width,
-  // 						   pCodecCtx->height,
-  // 						   1 ) ) ;
   out_buffer = ( uint8_t * )av_malloc( av_image_get_buffer_size( output_format_choice,
-						    pCodecCtx->width * 2,
-						    pCodecCtx->height * 2,
+						    width_choice,
+						    height_choice,
 						    1 ) ) ;
-  // av_image_fill_arrays( pFrameYUV->data, pFrameYUV->linesize, out_buffer,
-  // 		        AV_PIX_FMT_YUV420P, pCodecCtx->width, pCodecCtx->height,1);
   av_image_fill_arrays( pFrameYUV->data, pFrameYUV->linesize, out_buffer,
-		        output_format_choice, pCodecCtx->width * 2, pCodecCtx->height * 2,
+		        output_format_choice, width_choice, height_choice,
 			1 ) ;
        
   //Output Info-----------------------------
@@ -175,7 +161,7 @@ int main(int argc, char* argv[])
   printf("-------------------------------------------------\n");
 
   img_convert_ctx = sws_getContext( pCodecCtx->width, pCodecCtx->height, pCodecCtx->pix_fmt, 
-				    pCodecCtx->width * 2, pCodecCtx->height * 2,
+				    width_choice, height_choice,
 				    output_format_choice, interpolation_choice,
 				    NULL, NULL, NULL ) ;
 
@@ -190,8 +176,8 @@ int main(int argc, char* argv[])
     return -1;
   } 
 
-  screen_w = pCodecCtx->width * 2 ;
-  screen_h = pCodecCtx->height * 2 ;
+  screen_w = width_choice ;
+  screen_h = height_choice ;
   //SDL 2.0 Support for multiple windows
   screen = SDL_CreateWindow("Simplest ffmpeg player's Window",
 			    SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
@@ -208,7 +194,7 @@ int main(int argc, char* argv[])
   //YV12: Y + V + U  (3 planes)
   sdlTexture = SDL_CreateTexture( sdlRenderer, SDL_PIXELFORMAT_IYUV,
 				  SDL_TEXTUREACCESS_STREAMING,
-				  pCodecCtx->width * 2, pCodecCtx->height * 2 ) ;
+				  width_choice, height_choice ) ;
 
   sdlRect.x = 0 ;
   sdlRect.y = 0 ;
@@ -268,7 +254,7 @@ int main(int argc, char* argv[])
   
   // flush decoder
   // FIX: Flush Frames remained in Codec
-  while (1) {
+  for ( ; ; ) {
 
     if ( avcodec_decode_video2( pCodecCtx, pFrame, &got_picture, &packet ) < 0 ) {
       printf( "Decode Error.\n" ) ;
@@ -294,10 +280,10 @@ int main(int argc, char* argv[])
 #if 0
     SDL_UpdateTexture( sdlTexture, NULL, pFrameYUV->data[0], pFrameYUV->linesize[0] );  
 #else
-    SDL_UpdateYUVTexture(sdlTexture, &sdlRect,
-			 pFrameYUV->data[0], pFrameYUV->linesize[0],
-			 pFrameYUV->data[1], pFrameYUV->linesize[1],
-			 pFrameYUV->data[2], pFrameYUV->linesize[2]);
+    SDL_UpdateYUVTexture( sdlTexture, &sdlRect,
+			  pFrameYUV->data[0], pFrameYUV->linesize[0],
+			  pFrameYUV->data[1], pFrameYUV->linesize[1],
+			  pFrameYUV->data[2], pFrameYUV->linesize[2] ) ;
 #endif
     SDL_RenderClear( sdlRenderer ) ;
     SDL_RenderCopy( sdlRenderer, sdlTexture,  NULL, &sdlRect ) ;
